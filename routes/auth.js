@@ -1,64 +1,74 @@
-var express = require('express');
+var express = require("express");
 var router = express.Router();
-let userControllers = require('../controllers/users')
-let { check_authentication } = require("../utils/check_auth")
-let jwt = require('jsonwebtoken');
-let constants = require('../utils/constants')
+let userControllers = require("../controllers/users");
+let { check_authentication } = require("../utils/check_auth"); // Chỉ require 1 lần
+let jwt = require("jsonwebtoken");
+let constants = require("../utils/constants");
 
-router.post('/login', async function (req, res, next) {
+let authController = require("../controllers/auth");
+
+// Route sử dụng Controller (Cách tốt hơn)
+router.post("/login", authController.login);
+router.post("/register", authController.register);
+router.get("/me", check_authentication, authController.getMe);
+router.post("/changePassword", check_authentication, authController.changePassword);
+
+// Route sử dụng trực tiếp (Nếu cần custom)
+router.post("/signup", async function (req, res, next) {
     try {
-        let username = req.body.username;
-        let password = req.body.password;
-        let result = await userControllers.checkLogin(username, password);
-        res.status(200).send({
-            success: true,
-            data: jwt.sign({
-                id: result,
-                expireIn: (new Date(Date.now() + 3600 * 1000)).getTime()
-            }, constants.SECRET_KEY)
-        })
-    } catch (error) {
-        next(error)
-    }
-});
-router.post('/signup', async function (req, res, next) {
-    try {
-        let username = req.body.username;
-        let password = req.body.password;
-        let email = req.body.email;
-        let result = await userControllers.createAnUser(username, password,
-            email, 'user');
+        let { username, password, email } = req.body;
+        let result = await userControllers.createAnUser(username, password, email, "user");
         res.status(200).send({
             success: true,
             data: result
-        })
+        });
     } catch (error) {
-        next(error)
+        next(error);
     }
 });
-router.get('/me', check_authentication, async function (req, res, next) {
+
+router.post("/login", async function (req, res, next) {
+    try {
+        let { username, password } = req.body;
+        let result = await userControllers.checkLogin(username, password);
+        let token = jwt.sign(
+            {
+                id: result,
+                expireIn: (new Date(Date.now() + 3600 * 1000)).getTime(),
+            },
+            constants.SECRET_KEY
+        );
+        res.status(200).send({
+            success: true,
+            token
+        });
+    } catch (error) {
+        next(error);
+    }
+});
+
+router.get("/me", check_authentication, async function (req, res, next) {
     try {
         res.send({
             success: true,
             data: req.user
         });
     } catch (error) {
-        next(error)
+        next(error);
     }
 });
-router.post('/changepassword',check_authentication, async function (req, res, next) {
+
+router.post("/changepassword", check_authentication, async function (req, res, next) {
     try {
-        let oldpassword = req.body.oldpassword;
-        let newpassword = req.body.newpassword;
-        let user = userControllers.changePassword(req.user,oldpassword,newpassword);
+        let { oldpassword, newpassword } = req.body;
+        let user = await userControllers.changePassword(req.user, oldpassword, newpassword);
         res.send({
             success: true,
             data: user
         });
-        
     } catch (error) {
-        next(error)
+        next(error);
     }
 });
 
-module.exports = router
+module.exports = router;
